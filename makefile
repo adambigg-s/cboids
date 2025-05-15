@@ -5,7 +5,7 @@ BIN_DIR = bin
 SRC = $(wildcard $(SRC_DIR)/*.cpp)
 OBJ = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRC))
 OUT = $(BIN_DIR)/boids.exe
-CFLAGS = -Isokol
+CFLAGS = -Wall
 
 .PHONY: all
 all: $(OUT)
