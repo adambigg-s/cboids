@@ -1,3 +1,5 @@
+#include <vector>
+
 #define SOKOL_IMPL
 #define SOKOL_D3D11
 
@@ -5,12 +7,25 @@
 #include "../sokol/sokol_gfx.h"
 #include "../sokol/sokol_glue.h"
 #include "../sokol/sokol_log.h"
+
 #include "shaders.hpp"
 
-#define WIDTH 800
-#define HEIGHT 600
+#define WIDTH 1920
+#define HEIGHT 1080
 
 constexpr sg_color BACKGROUND_COLOR = sg_color{.r = 0.2, .g = 0.2, .b = 0.3};
+
+typedef struct Boid {
+    float direc;
+    float x;
+    float y;
+} Boid;
+
+typedef struct World {
+    float width;
+    float height;
+    std::vector<Boid> boids;
+} World;
 
 typedef struct State {
     sg_pass_action pass_action;
@@ -26,30 +41,33 @@ void init(void *state_ptr) {
     description.logger = sg_logger{.func = slog_func};
     sg_setup(&description);
 
-    sg_shader shader = sg_make_shader(simple_shader_desc(sg_query_backend()));
-
     // clang-format off
     float vertices[] = {
-        -0.5, -0.5, 0.0,
-        0.5, -0.5, 0.0,
-        0.0, 0.5, 0.0,
+        -0.4, -0.4,    0.7, 1.,  0.,
+        0.4,  -0.4,    0.,  0.7, 1.,
+        0.,   1.,      1.,  0.,  0.7,
     };
     // clang-format on
-    sg_buffer_desc buffer_desc = {};
+    sg_buffer_desc buffer_desc = sg_buffer_desc{};
     buffer_desc.size = sizeof(vertices);
     buffer_desc.data = sg_range{.ptr = &vertices, .size = sizeof(vertices)};
-    buffer_desc.label = "triangle vertices";
+    buffer_desc.label = "boid vertices";
+    buffer_desc.type = sg_buffer_type::SG_BUFFERTYPE_VERTEXBUFFER;
     state->bindings.vertex_buffers[0] = sg_make_buffer(&buffer_desc);
 
+    sg_shader shader = sg_make_shader(simple_shader_desc(sg_query_backend()));
     sg_pipeline_desc pipe_desc = sg_pipeline_desc{};
     pipe_desc.shader = shader;
-    pipe_desc.layout.attrs[ATTR_simple_position].format = SG_VERTEXFORMAT_FLOAT3;
-    pipe_desc.label = "triangle pipeline";
+    pipe_desc.layout.attrs[ATTR_simple_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
+    pipe_desc.layout.attrs[ATTR_simple_v_color].format = SG_VERTEXFORMAT_FLOAT3;
+    pipe_desc.label = "boid pipeline";
     state->pipeline = sg_make_pipeline(pipe_desc);
 
     sg_pass_action pass_action = sg_pass_action{};
-    pass_action.colors[0] =
-        sg_color_attachment_action{.load_action = SG_LOADACTION_CLEAR, .clear_value = BACKGROUND_COLOR};
+    pass_action.colors[0] = sg_color_attachment_action{
+        .load_action = SG_LOADACTION_CLEAR,
+        .clear_value = BACKGROUND_COLOR,
+    };
     state->pass_action = pass_action;
 }
 
@@ -63,6 +81,21 @@ void frame(void *state_ptr) {
 
     sg_apply_pipeline(state->pipeline);
     sg_apply_bindings(&state->bindings);
+
+    static float time = 0;
+    time += 0.01;
+
+    v_params_boid_t boid = v_params_boid_t{
+        .xpos = WIDTH / 2.,
+        .ypos = HEIGHT / 2.,
+        .angle = time,
+        .scale = 100,
+    };
+    sg_apply_uniforms(UB_v_params_boid, sg_range{.ptr = &boid, .size = sizeof(boid)});
+
+    v_params_world_t world = v_params_world_t{.worldx = WIDTH, .worldy = HEIGHT};
+    sg_apply_uniforms(UB_v_params_world, sg_range{.ptr = &world, .size = sizeof(world)});
+
     sg_draw(0, 3, 1);
 
     sg_end_pass();

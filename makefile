@@ -28,5 +28,5 @@ clean:
 	if exist $(BIN_DIR) rmdir /s /q $(BIN_DIR)
 
 .PHONY: run
-run: clean all
+run: all
 	$(OUT)
