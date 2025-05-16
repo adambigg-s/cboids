@@ -36,10 +36,10 @@ typedef struct State {
 void init(void *state_ptr) {
     State *state = (State *)state_ptr;
 
-    sg_desc description = sg_desc{};
-    description.environment = sglue_environment();
-    description.logger = sg_logger{.func = slog_func};
-    sg_setup(&description);
+    sg_setup(sg_desc{
+        .logger = sg_logger{.func = slog_func, .user_data = state_ptr},
+        .environment = sglue_environment(),
+    });
 
     // clang-format off
     float vertices[] = {
@@ -48,36 +48,36 @@ void init(void *state_ptr) {
         0.,   1.,      1.,  0.,  0.7,
     };
     // clang-format on
-    sg_buffer_desc buffer_desc = sg_buffer_desc{};
-    buffer_desc.size = sizeof(vertices);
-    buffer_desc.data = sg_range{.ptr = &vertices, .size = sizeof(vertices)};
-    buffer_desc.label = "boid vertices";
-    buffer_desc.type = sg_buffer_type::SG_BUFFERTYPE_VERTEXBUFFER;
-    state->bindings.vertex_buffers[0] = sg_make_buffer(&buffer_desc);
 
-    sg_shader shader = sg_make_shader(simple_shader_desc(sg_query_backend()));
-    sg_pipeline_desc pipe_desc = sg_pipeline_desc{};
-    pipe_desc.shader = shader;
-    pipe_desc.layout.attrs[ATTR_simple_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
-    pipe_desc.layout.attrs[ATTR_simple_v_color].format = SG_VERTEXFORMAT_FLOAT3;
-    pipe_desc.label = "boid pipeline";
-    state->pipeline = sg_make_pipeline(pipe_desc);
+    state->bindings.vertex_buffers[0] = sg_make_buffer(sg_buffer_desc{
+        .size = sizeof(vertices),
+        .type = sg_buffer_type::SG_BUFFERTYPE_VERTEXBUFFER,
+        .data = sg_range{.ptr = &vertices, .size = sizeof(vertices)},
+        .label = "boid vertices",
+    });
 
-    sg_pass_action pass_action = sg_pass_action{};
-    pass_action.colors[0] = sg_color_attachment_action{
+    sg_pipeline_desc pipeline_desc = sg_pipeline_desc{
+        .shader = sg_make_shader(simple_shader_desc(sg_query_backend())),
+        .label = "boid pipeline",
+    };
+    pipeline_desc.layout.attrs[ATTR_simple_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
+    pipeline_desc.layout.attrs[ATTR_simple_v_color].format = SG_VERTEXFORMAT_FLOAT3;
+    state->pipeline = sg_make_pipeline(pipeline_desc);
+
+    state->pass_action = sg_pass_action{};
+    state->pass_action.colors[0] = sg_color_attachment_action{
         .load_action = SG_LOADACTION_CLEAR,
         .clear_value = BACKGROUND_COLOR,
     };
-    state->pass_action = pass_action;
 }
 
 void frame(void *state_ptr) {
     State *state = (State *)state_ptr;
 
-    sg_pass pass = sg_pass{};
-    pass.action = state->pass_action;
-    pass.swapchain = sglue_swapchain();
-    sg_begin_pass(&pass);
+    sg_begin_pass(sg_pass{
+        .action = state->pass_action,
+        .swapchain = sglue_swapchain(),
+    });
 
     sg_apply_pipeline(state->pipeline);
     sg_apply_bindings(&state->bindings);
@@ -93,7 +93,10 @@ void frame(void *state_ptr) {
     };
     sg_apply_uniforms(UB_v_params_boid, sg_range{.ptr = &boid, .size = sizeof(boid)});
 
-    v_params_world_t world = v_params_world_t{.worldx = WIDTH, .worldy = HEIGHT};
+    v_params_world_t world = v_params_world_t{
+        .worldx = WIDTH,
+        .worldy = HEIGHT,
+    };
     sg_apply_uniforms(UB_v_params_world, sg_range{.ptr = &world, .size = sizeof(world)});
 
     sg_draw(0, 3, 1);
