@@ -1,7 +1,10 @@
-#include <vector>
-
 #define SOKOL_IMPL
 #define SOKOL_D3D11
+
+#define WIDTH 1920
+#define HEIGHT 1080
+
+#include <vector>
 
 #include "../sokol/sokol_app.h"
 #include "../sokol/sokol_gfx.h"
@@ -9,9 +12,6 @@
 #include "../sokol/sokol_log.h"
 
 #include "shaders.hpp"
-
-#define WIDTH 1920
-#define HEIGHT 1080
 
 constexpr sg_color BACKGROUND_COLOR = sg_color{.r = 0.2, .g = 0.2, .b = 0.3};
 
@@ -31,6 +31,9 @@ typedef struct State {
     sg_pass_action pass_action;
     sg_bindings bindings;
     sg_pipeline pipeline;
+
+    float x;
+    float y;
 } State;
 
 void init(void *state_ptr) {
@@ -69,6 +72,9 @@ void init(void *state_ptr) {
         .load_action = SG_LOADACTION_CLEAR,
         .clear_value = BACKGROUND_COLOR,
     };
+
+    state->x = sapp_widthf() / 2;
+    state->y = sapp_heightf() / 2;
 }
 
 void frame(void *state_ptr) {
@@ -86,16 +92,14 @@ void frame(void *state_ptr) {
     time += 0.01;
 
     v_params_boid_t boid = v_params_boid_t{
-        .xpos = WIDTH / 2.,
-        .ypos = HEIGHT / 2.,
+        .pos = {state->x, state->y},
         .angle = time,
         .scale = 100,
     };
     sg_apply_uniforms(UB_v_params_boid, sg_range{.ptr = &boid, .size = sizeof(boid)});
 
     v_params_world_t world = v_params_world_t{
-        .worldx = WIDTH,
-        .worldy = HEIGHT,
+        .world_dims = {sapp_widthf(), sapp_heightf()},
     };
     sg_apply_uniforms(UB_v_params_world, sg_range{.ptr = &world, .size = sizeof(world)});
 
@@ -108,8 +112,18 @@ void frame(void *state_ptr) {
 void event(const sapp_event *event, void *state_ptr) {
     State *state = (State *)state_ptr;
 
-    if (event->type == SAPP_EVENTTYPE_KEY_DOWN && event->key_code == SAPP_KEYCODE_ESCAPE) {
-        sapp_request_quit();
+    if (event->type == SAPP_EVENTTYPE_KEY_DOWN) {
+        if (event->key_code == SAPP_KEYCODE_ESCAPE) {
+            sapp_request_quit();
+        } else if (event->key_code == SAPP_KEYCODE_W) {
+            state->y += 10;
+        } else if (event->key_code == SAPP_KEYCODE_S) {
+            state->y -= 10;
+        } else if (event->key_code == SAPP_KEYCODE_A) {
+            state->x -= 10;
+        } else if (event->key_code == SAPP_KEYCODE_D) {
+            state->x += 10;
+        }
     }
 }
 
@@ -117,7 +131,7 @@ void cleanup(void *user_data) {
     State *state = (State *)user_data;
 
     sg_shutdown();
-    free(user_data);
+    free(state);
 }
 
 sapp_desc sokol_main(int _argc, char *_argv[]) {
