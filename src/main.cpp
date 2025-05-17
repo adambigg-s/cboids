@@ -19,6 +19,12 @@ typedef struct Boid {
     float direc;
     float x;
     float y;
+    float speed;
+
+    void update() {
+        this->x += this->speed * -sin(this->direc);
+        this->y += this->speed * cos(this->direc);
+    }
 } Boid;
 
 typedef struct World {
@@ -32,8 +38,22 @@ typedef struct State {
     sg_bindings bindings;
     sg_pipeline pipeline;
 
-    float x;
-    float y;
+    Boid boid;
+
+    void contain_boids() {
+        float w = sapp_widthf();
+        float h = sapp_heightf();
+        if (this->boid.x > w) {
+            this->boid.x -= w;
+        } else if (this->boid.x < 0) {
+            this->boid.x += w;
+        }
+        if (this->boid.y > h) {
+            this->boid.y -= h;
+        } else if (this->boid.x < 0) {
+            this->boid.y += h;
+        }
+    }
 } State;
 
 void init(void *state_ptr) {
@@ -73,12 +93,17 @@ void init(void *state_ptr) {
         .clear_value = BACKGROUND_COLOR,
     };
 
-    state->x = sapp_widthf() / 2;
-    state->y = sapp_heightf() / 2;
+    state->boid.x = sapp_widthf() / 2;
+    state->boid.y = sapp_heightf() / 2;
+    state->boid.speed = 10.;
+    state->boid.direc = -3.14159265 / 2;
 }
 
 void frame(void *state_ptr) {
     State *state = (State *)state_ptr;
+
+    state->boid.update();
+    state->contain_boids();
 
     sg_begin_pass(sg_pass{
         .action = state->pass_action,
@@ -92,8 +117,8 @@ void frame(void *state_ptr) {
     time += 0.01;
 
     v_params_boid_t boid = v_params_boid_t{
-        .pos = {state->x, state->y},
-        .angle = time,
+        .pos = {state->boid.x, state->boid.y},
+        .angle = state->boid.direc,
         .scale = 100,
     };
     sg_apply_uniforms(UB_v_params_boid, sg_range{.ptr = &boid, .size = sizeof(boid)});
@@ -115,14 +140,13 @@ void event(const sapp_event *event, void *state_ptr) {
     if (event->type == SAPP_EVENTTYPE_KEY_DOWN) {
         if (event->key_code == SAPP_KEYCODE_ESCAPE) {
             sapp_request_quit();
-        } else if (event->key_code == SAPP_KEYCODE_W) {
-            state->y += 10;
-        } else if (event->key_code == SAPP_KEYCODE_S) {
-            state->y -= 10;
-        } else if (event->key_code == SAPP_KEYCODE_A) {
-            state->x -= 10;
-        } else if (event->key_code == SAPP_KEYCODE_D) {
-            state->x += 10;
+        }
+
+        if (event->key_code == SAPP_KEYCODE_Q) {
+            state->boid.direc += 0.1;
+        }
+        if (event->key_code == SAPP_KEYCODE_E) {
+            state->boid.direc -= 0.1;
         }
     }
 }

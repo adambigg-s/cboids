@@ -35,14 +35,16 @@ void main() {
     else if (world.x < 0.) {
         world.x  = world.x + world_dims.x;
     }
+    if (world.y > world_dims.y) {
+        world.y = world.y - world_dims.y;
+    }
+    else if (world.y < 0.) {
+        world.y = world.y + world_dims.y;
+    }
     float ndcx = (world.x / world_dims.x) * 2. - 1.;
     float ndcy = (world.y / world_dims.y) * 2. - 1.;
 
     vec2 ndc = vec2(ndcx, ndcy);
-
-    float aspect_ratio = world_dims.x / world_dims.y;
-
-    ndc *= aspect_ratio;
 
     gl_Position = vec4(ndc, 0., 1.);
 }
@@ -63,7 +65,7 @@ void main() {
         abs(sin(f_angle + TAU / 3. * 2.))
     );
 
-    color = mix(f_color, color_alter, 0.33);
+    color = mix(f_color, color_alter, 0.5);
 }
 @end
 
