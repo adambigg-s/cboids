@@ -29,18 +29,6 @@ void main() {
 
     vec2 world = pos + rotated;
 
-    if (world.x > world_dims.x) {
-        world.x = world.x - world_dims.x;
-    }
-    else if (world.x < 0.) {
-        world.x  = world.x + world_dims.x;
-    }
-    if (world.y > world_dims.y) {
-        world.y = world.y - world_dims.y;
-    }
-    else if (world.y < 0.) {
-        world.y = world.y + world_dims.y;
-    }
     float ndcx = (world.x / world_dims.x) * 2. - 1.;
     float ndcy = (world.y / world_dims.y) * 2. - 1.;
 
