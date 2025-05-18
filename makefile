@@ -5,7 +5,7 @@ BIN_DIR = bin
 SRC = $(wildcard $(SRC_DIR)/*.cpp)
 OBJ = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRC))
 OUT = $(BIN_DIR)/boids.exe
-CFLAGS = -Wall
+CFLAGS = -Wall -O2
 
 .PHONY: all
 all: $(OUT)
@@ -28,5 +28,5 @@ clean:
 	if exist $(BIN_DIR) rmdir /s /q $(BIN_DIR)
 
 .PHONY: run
-run: all
+run: clean all
 	$(OUT)
