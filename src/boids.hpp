@@ -26,14 +26,18 @@ typedef struct Boid {
 
     void contain(float xmin, float xmax, float ymin, float ymax) {
         if (this->position.x > xmax) {
-            this->position.x -= xmin;
+            // this->position.x -= xmin;
+            this->velocity.x *= -1;
         } else if (this->position.x < xmin) {
-            this->position.x += xmax;
+            // this->position.x += xmax;
+            this->velocity.x *= -1;
         }
         if (this->position.y > ymax) {
-            this->position.y -= ymin;
+            // this->position.y -= ymin;
+            this->velocity.y *= -1;
         } else if (this->position.y < ymin) {
-            this->position.y += ymax;
+            // this->position.y += ymax;
+            this->velocity.y *= -1;
         }
     }
 
