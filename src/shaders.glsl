@@ -34,7 +34,6 @@ void main() {
 
     float ndcx = (world.x / world_dims.x) * 2. - 1.;
     float ndcy = (world.y / world_dims.y) * 2. - 1.;
-
     vec2 ndc = vec2(ndcx, ndcy);
 
     gl_Position = vec4(ndc, 0., 1.);

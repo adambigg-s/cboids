@@ -6,62 +6,115 @@
 
 #include "vector.hpp"
 
-const int BOID_COUNT = 3000;
-const int BOID_SCALE = 10;
+const int BOID_COUNT = 300;
+const int BOID_SCALE = 15;
 
 typedef struct Boid {
-    Vec2 pos;
-    Vec2 vel;
+    Vec2 position;
+    Vec2 velocity;
 
     static Boid build(Vec2 pos, Vec2 vel) {
         return Boid{
-            .pos = pos,
-            .vel = vel,
+            .position = pos,
+            .velocity = vel,
         };
     }
 
     void move() {
-        this->pos.add_assign(this->vel);
+        this->position.add_assign(this->velocity);
     }
 
     void contain(float xmin, float xmax, float ymin, float ymax) {
-        if (this->pos.x > xmax) {
-            this->pos.x -= xmin;
-        } else if (this->pos.x < xmin) {
-            this->pos.x += xmax;
+        if (this->position.x > xmax) {
+            this->position.x -= xmin;
+        } else if (this->position.x < xmin) {
+            this->position.x += xmax;
         }
-        if (this->pos.y > ymax) {
-            this->pos.y -= ymin;
-        } else if (this->pos.y < ymin) {
-            this->pos.y += ymax;
+        if (this->position.y > ymax) {
+            this->position.y -= ymin;
+        } else if (this->position.y < ymin) {
+            this->position.y += ymax;
+        }
+    }
+
+    void clamp_speed(float max_speed, float min_speed) {
+        float speed = this->velocity.length();
+        if (speed > max_speed) {
+            this->velocity = this->velocity.normalized().mul(max_speed);
+        }
+        if (speed < min_speed) {
+            this->velocity = this->velocity.normalized().mul(min_speed);
         }
     }
 } Boid;
 
+typedef struct BoidParams {
+    int vertices;
+    int boid_count;
+    float max_speed;
+    float min_speed;
+    float boid_scale;
+    float neighbor_distance;
+    float separation_distance;
+    float cohesion;
+    float alignment;
+    float separation;
+} BoidParams;
+
 typedef struct BoidManager {
+    BoidParams params;
     std::vector<Boid> boids;
 
     void update_boids(float height, float width) {
         for (Boid &boid : this->boids) {
             boid.move();
             boid.contain(0, width, 0, height);
+            boid.clamp_speed(this->params.max_speed, this->params.min_speed);
         }
     }
 
-    void cohese_boids() {
+    void cohesion() {
         for (Boid &target : this->boids) {
-            Vec2 center = Vec2::zeros();
+            Vec2 center_force = Vec2::zeros();
             int counter = 0;
             for (const Boid &other : this->boids) {
                 if (&target == &other) {
                     continue;
                 }
-                Vec2 relative = other.pos.sub(target.pos);
-                if (relative.length() > 100) {
+                Vec2 relative = other.position.sub(target.position);
+                if (relative.length() > this->params.neighbor_distance) {
                     continue;
                 }
 
-                center.add_assign(other.pos);
+                center_force.add_assign(other.position);
+                counter += 1;
+            }
+            if (counter == 0) {
+                continue;
+            }
+
+            center_force.div_assign(counter);
+            center_force.sub_assign(target.position);
+            center_force.mul_assign(this->params.cohesion);
+
+            target.velocity.add_assign(center_force);
+        }
+    }
+
+    void alignment() {
+        for (Boid &target : this->boids) {
+            Vec2 direction_force = Vec2::zeros();
+            int counter = 0;
+            for (const Boid &other : this->boids) {
+                if (&target == &other) {
+                    continue;
+                }
+                Vec2 relative = other.position.sub(target.position);
+                if (relative.length() > this->params.neighbor_distance) {
+                    continue;
+                }
+
+                direction_force.add_assign(other.velocity);
                 counter += 1;
             }
 
@@ -69,60 +122,32 @@ typedef struct BoidManager {
                 continue;
             }
 
-            center.div_assign(counter);
-            Vec2 delta = center.sub(target.pos);
-            delta.div_assign(10000);
+            direction_force.div_assign(counter);
+            direction_force.sub_assign(target.velocity);
+            direction_force.mul_assign(this->params.alignment);
 
-            target.vel.add_assign(delta);
+            target.velocity.add_assign(direction_force);
         }
     }
 
-    void align_boids() {
-        for (Boid &target : this->boids) {
-            Vec2 direc = Vec2::zeros();
-            int counter = 0;
-            for (const Boid &other : this->boids) {
-                if (&target == &other) {
-                    continue;
-                }
-                Vec2 relative = other.pos.sub(target.pos);
-                if (relative.length() > 100) {
-                    continue;
-                }
-
-                direc.add_assign(other.vel);
-                counter += 1;
-            }
-
-            if (counter == 0) {
-                continue;
-            }
-
-            Vec2 delta = direc.div(counter);
-            delta.sub_assign(target.vel);
-            delta.div_assign(100);
-
-            target.vel.add_assign(delta);
-        }
-    }
-
-    void separate_boids() {
+    void separation() {
         for (Boid &target : this->boids) {
             Vec2 force = Vec2::zeros();
             for (const Boid &other : this->boids) {
                 if (&target == &other) {
                     continue;
                 }
-                Vec2 relative = other.pos.sub(target.pos);
-                if (relative.length() > 100) {
+                Vec2 relative = other.position.sub(target.position);
+                if (relative.length() > this->params.separation_distance) {
                     continue;
                 }
 
                 force.sub_assign(relative);
             }
 
-            Vec2 delta = force.div(10000);
-            target.vel.add_assign(delta);
+            force.mul_assign(this->params.separation);
+
+            target.velocity.add_assign(force);
         }
     }
 } BoidManager;
@@ -140,10 +165,17 @@ typedef struct World {
     }
 
     void update() {
-        this->data.cohese_boids();
-        this->data.align_boids();
-        this->data.separate_boids();
+        this->data.cohesion();
+        this->data.alignment();
+        this->data.separation();
         this->data.update_boids(this->height, this->width);
+
+        while (this->data.boids.size() < this->data.params.boid_count) {
+            this->add_boid();
+        }
+        while (this->data.boids.size() > this->data.params.boid_count) {
+            this->data.boids.pop_back();
+        }
     }
 } World;
 
