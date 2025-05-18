@@ -6,8 +6,8 @@
 
 #include "vector.hpp"
 
-const int BOID_COUNT = 300;
-const int BOID_SCALE = 15;
+const int BOID_COUNT = 1000;
+const int BOID_SCALE = 5;
 
 typedef struct Boid {
     Vec2 position;
@@ -26,17 +26,13 @@ typedef struct Boid {
 
     void contain(float xmin, float xmax, float ymin, float ymax) {
         if (this->position.x > xmax) {
-            // this->position.x -= xmin;
             this->velocity.x *= -1;
         } else if (this->position.x < xmin) {
-            // this->position.x += xmax;
             this->velocity.x *= -1;
         }
         if (this->position.y > ymax) {
-            // this->position.y -= ymin;
             this->velocity.y *= -1;
         } else if (this->position.y < ymin) {
-            // this->position.y += ymax;
             this->velocity.y *= -1;
         }
     }

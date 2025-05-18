@@ -147,14 +147,14 @@ sapp_desc sokol_main(int _argc, char *_argv[]) {
     state_ptr->world.data.params = BoidParams{
         .vertices = 3,
         .boid_count = BOID_COUNT,
-        .max_speed = 7,
+        .max_speed = 10,
         .min_speed = 3,
         .boid_scale = BOID_SCALE,
-        .neighbor_distance = 150,
+        .neighbor_distance = 100,
         .separation_distance = 50,
         .cohesion = 0.001,
         .alignment = 0.07,
-        .separation = 0.005,
+        .separation = 0.003,
     };
 
     sapp_desc description = sapp_desc{
