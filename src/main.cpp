@@ -8,7 +8,6 @@ const int HEIGHT = 1080;
 #include "../sokol/sokol_gfx.h"
 #include "../sokol/sokol_glue.h"
 #include "../sokol/sokol_log.h"
-#include "../sokol/sokol_time.h"
 
 #include "boids.hpp"
 #include "shaders.hpp"
@@ -23,8 +22,8 @@ typedef struct State {
     World world;
 
     void update() {
-        this->world.height = sapp_heightf();
-        this->world.width = sapp_widthf();
+        this->world.bounds.ymax = sapp_heightf();
+        this->world.bounds.xmax = sapp_widthf();
         this->world.update();
     }
 } State;
@@ -78,7 +77,7 @@ void sok_frame(void *state_ptr) {
     sg_apply_pipeline(state->boid_pipeline);
     sg_apply_bindings(&state->boid_binding);
     v_params_world_t world = v_params_world_t{
-        .world_dims = {state->world.width, state->world.height},
+        .world_dims = {state->world.bounds.xmax, state->world.bounds.ymax},
     };
     sg_apply_uniforms(UB_v_params_world, sg_range{.ptr = &world, .size = sizeof(world)});
     for (Boid &boid : state->world.data.boids) {
@@ -143,18 +142,18 @@ void sok_cleanup(void *user_data) {
 
 sapp_desc sokol_main(int _argc, char *_argv[]) {
     State *state_ptr = new State{};
-    state_ptr->world = World{.width = WIDTH, .height = HEIGHT};
+    state_ptr->world = World{.bounds = BoundingBox{.xmin = 0, .xmax = WIDTH, .ymin = 0, .ymax = HEIGHT}};
     state_ptr->world.data.params = BoidParams{
         .vertices = 3,
-        .boid_count = BOID_COUNT,
+        .boid_count = 100,
         .max_speed = 10,
         .min_speed = 3,
-        .boid_scale = BOID_SCALE,
+        .boid_scale = 20,
         .neighbor_distance = 100,
         .separation_distance = 50,
         .cohesion = 0.001,
         .alignment = 0.07,
-        .separation = 0.003,
+        .separation = 0.01,
     };
 
     sapp_desc description = sapp_desc{
