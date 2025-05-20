@@ -1,6 +1,9 @@
 #ifndef BOIDS_H
 #define BOIDS_H
 
+#define PI 3.141592
+#define TAU PI * 2
+
 #include <cstdlib>
 #include <vector>
 
@@ -12,37 +15,38 @@ typedef struct BoundingBox {
     float ymin;
     float ymax;
 
-    void wrapped_relative_position(const Vec2 *con, Vec2 *var) {
+    Vec2 box_wrapped_postion(Vec2 *to, Vec2 *from) {
         float x_range = this->xmax - this->xmin;
         float y_range = this->ymax - this->ymin;
 
-        float dx = con->x - var->x;
-        float dy = con->y - var->y;
-        float dx_mag = abs(dx);
-        float dy_mag = abs(dy);
+        Vec2 direct = to->sub(*from);
 
-        if (abs(dx + x_range) < dx_mag) {
-            var->x += x_range;
-        } else if (abs(dx - x_range) < dx_mag) {
-            var->x -= x_range;
+        if (direct.x > x_range / 2) {
+            direct.x -= x_range;
+        } else if (direct.x < -x_range / 2) {
+            direct.x += x_range;
         }
 
-        if (abs(dy + y_range) < dy_mag) {
-            var->y += y_range;
-        } else if (abs(dy - y_range) < dy_mag) {
-            var->y -= y_range;
+        if (direct.y > y_range / 2) {
+            direct.y -= y_range;
+        } else if (direct.y < -y_range / 2) {
+            direct.y += y_range;
         }
+
+        return direct;
     }
 } BoundingBox;
 
 typedef struct Boid {
     Vec2 position;
     Vec2 velocity;
+    Vec2 acceleration;
 
     static Boid build(Vec2 pos, Vec2 vel) {
         return Boid{
             .position = pos,
             .velocity = vel,
+            .acceleration = Vec2::zeros(),
         };
     }
 
@@ -50,19 +54,23 @@ typedef struct Boid {
         this->position.add_assign(this->velocity);
     }
 
+    void integrate() {
+        this->velocity.add_assign(this->acceleration);
+    }
+
+    void reset_forces() {
+        this->acceleration.mul_assign(0);
+    }
+
     void contain(BoundingBox *bounds) {
         if (this->position.x > bounds->xmax) {
-            // this->velocity.x *= -1;
             this->position.x = bounds->xmin;
         } else if (this->position.x < bounds->xmin) {
-            // this->velocity.x *= -1;
             this->position.x = bounds->xmax;
         }
         if (this->position.y > bounds->ymax) {
-            // this->velocity.y *= -1;
             this->position.y = bounds->ymin;
         } else if (this->position.y < bounds->ymin) {
-            // this->velocity.y *= -1;
             this->position.y = bounds->ymax;
         }
     }
@@ -70,10 +78,10 @@ typedef struct Boid {
     void clamp_speed(float max_speed, float min_speed) {
         float speed = this->velocity.length();
         if (speed > max_speed) {
-            this->velocity = this->velocity.normalized().mul(max_speed);
+            this->velocity.mul_assign(max_speed / speed);
         }
         if (speed < min_speed) {
-            this->velocity = this->velocity.normalized().mul(min_speed);
+            this->velocity.mul_assign(min_speed / speed);
         }
     }
 } Boid;
@@ -97,9 +105,11 @@ typedef struct BoidManager {
 
     void update_boids(BoundingBox *bounds) {
         for (Boid &boid : this->boids) {
-            boid.move();
-            boid.contain(bounds);
+            boid.integrate();
+            boid.reset_forces();
             boid.clamp_speed(this->params.max_speed, this->params.min_speed);
+            boid.contain(bounds);
+            boid.move();
         }
     }
 
@@ -115,7 +125,7 @@ typedef struct BoidManager {
 
                 Vec2 target_position = target.position;
                 Vec2 other_position = other.position;
-                bounds->wrapped_relative_position(&target_position, &other_position);
+                other_position = bounds->box_wrapped_postion(&target_position, &other_position);
 
                 Vec2 relative = other_position.sub(target_position);
                 if (relative.length() > this->params.neighbor_distance) {
@@ -133,7 +143,7 @@ typedef struct BoidManager {
             center_force.sub_assign(target.position);
             center_force.mul_assign(this->params.cohesion);
 
-            target.velocity.add_assign(center_force);
+            target.acceleration.add_assign(center_force);
         }
     }
 
@@ -148,7 +158,7 @@ typedef struct BoidManager {
 
                 Vec2 target_position = target.position;
                 Vec2 other_position = other.position;
-                bounds->wrapped_relative_position(&target_position, &other_position);
+                other_position = bounds->box_wrapped_postion(&target_position, &other_position);
 
                 Vec2 relative = other_position.sub(target_position);
                 if (relative.length() > this->params.neighbor_distance) {
@@ -167,7 +177,7 @@ typedef struct BoidManager {
             direction_force.sub_assign(target.velocity);
             direction_force.mul_assign(this->params.alignment);
 
-            target.velocity.add_assign(direction_force);
+            target.acceleration.add_assign(direction_force);
         }
     }
 
@@ -181,7 +191,7 @@ typedef struct BoidManager {
 
                 Vec2 target_position = target.position;
                 Vec2 other_position = other.position;
-                bounds->wrapped_relative_position(&target_position, &other_position);
+                other_position = bounds->box_wrapped_postion(&target_position, &other_position);
 
                 Vec2 relative = other_position.sub(target_position);
                 if (relative.length() > this->params.separation_distance) {
@@ -193,7 +203,7 @@ typedef struct BoidManager {
 
             force.mul_assign(this->params.separation);
 
-            target.velocity.add_assign(force);
+            target.acceleration.add_assign(force);
         }
     }
 } BoidManager;
@@ -205,8 +215,9 @@ typedef struct World {
     void add_boid() {
         int x = rand() % (int)this->bounds.xmax;
         int y = rand() % (int)this->bounds.ymax;
-        float angle = (float)rand() / RAND_MAX * 3.141592 * 2;
-        data.boids.push_back(Boid::build(Vec2::build(x, y), Vec2::build(cos(angle), sin(angle))));
+        float angle = (float)rand() / RAND_MAX * TAU;
+        data.boids.push_back(Boid::build(
+            Vec2::build(x, y), Vec2::build(cos(angle), sin(angle)).mul(this->data.params.max_speed)));
     }
 
     void update() {
