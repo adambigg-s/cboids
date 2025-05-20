@@ -9,7 +9,7 @@
 #include "boids.hpp"
 #include "shaders.hpp"
 
-constexpr sg_color BACKGROUND_COLOR = sg_color{.r = 0.2, .g = 0.2, .b = 0.3};
+constexpr sg_color BACKGROUND_COLOR = sg_color{.r = 0.15, .g = 0.15, .b = 0.25};
 
 typedef struct State {
     sg_pass_action pass_action;
@@ -166,6 +166,8 @@ sapp_desc sokol_main(int _argc, char *_argv[]) {
         .alignment = 2.5,
         .separation = 1000,
         .peripheral_angle = PI / 6,
+        .wall_distance = 300,
+        .wall_strength = 100000,
     };
 
     sapp_desc description = sapp_desc{

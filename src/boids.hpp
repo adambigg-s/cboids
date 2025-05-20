@@ -1,14 +1,21 @@
 #ifndef BOIDS_H
 #define BOIDS_H
 
-#include <cmath>
 #define PI 3.141592
 #define TAU PI * 2
 
-#include <cstdlib>
 #include <vector>
 
 #include "vector.hpp"
+
+typedef struct VectorData {
+    Vec2 vector;
+    float length;
+
+    static VectorData build(Vec2 vector) {
+        return VectorData{.vector = vector, .length = vector.length()};
+    }
+} VectorData;
 
 typedef struct BoundingBox {
     float xmin;
@@ -50,6 +57,8 @@ typedef struct BoidParams {
     float alignment;
     float separation;
     float peripheral_angle;
+    float wall_distance;
+    float wall_strength;
 } BoidParams;
 
 typedef struct Boid {
@@ -74,22 +83,23 @@ typedef struct Boid {
     }
 
     void reset_forces() {
-        this->acceleration = Vec2::zeros();
+        this->acceleration.mul_assign(0);
     }
 
     void contain(BoundingBox *bounds) {
+        float epsilon = 1e-4;
         if (this->position.x > bounds->xmax) {
-            this->position.x = bounds->xmax;
+            this->position.x = bounds->xmax - epsilon;
             this->velocity.x *= -1;
         } else if (this->position.x < bounds->xmin) {
-            this->position.x = bounds->xmin;
+            this->position.x = bounds->xmin + epsilon;
             this->velocity.x *= -1;
         }
         if (this->position.y > bounds->ymax) {
-            this->position.y = bounds->ymax;
+            this->position.y = bounds->ymax - epsilon;
             this->velocity.y *= -1;
         } else if (this->position.y < bounds->ymin) {
-            this->position.y = bounds->ymin;
+            this->position.y = bounds->ymin + epsilon;
             this->velocity.y *= -1;
         }
     }
@@ -104,41 +114,56 @@ typedef struct Boid {
         }
     }
 
-    void cohesion(Vec2 *pointer, Vec2 *cohesion_force, int *counter, BoidParams *params) {
-        float distance = pointer->length();
+    void avoid_walls(BoundingBox *bounds, BoidParams *params) {
+        Vec2 repulsion = Vec2::zeros();
+        if (this->position.x < bounds->xmin + params->wall_distance) {
+            float distance = this->position.x - bounds->xmin;
+            repulsion.x += params->wall_strength / (distance * distance);
+        }
+        if (this->position.x > bounds->xmax - params->wall_distance) {
+            float distance = bounds->xmax - this->position.x;
+            repulsion.x -= params->wall_strength / (distance * distance);
+        }
+        if (this->position.y < bounds->ymin + params->wall_distance) {
+            float distance = this->position.y - bounds->ymin;
+            repulsion.y += params->wall_strength / (distance * distance);
+        }
+        if (this->position.y > bounds->ymax - params->wall_distance) {
+            float distance = bounds->ymax - this->position.y;
+            repulsion.y -= params->wall_strength / (distance * distance);
+        }
 
-        if (distance > params->neighbor_distance) {
+        this->acceleration.add_assign(repulsion);
+    }
+
+    void cohesion(VectorData *pointer, Vec2 *force, int *counter, BoidParams *params) {
+        if (pointer->length > params->neighbor_distance) {
             return;
         }
 
         *counter += 1;
-        cohesion_force->add_assign(*pointer);
+        force->add_assign(pointer->vector);
     }
 
-    void alignment(
-        Vec2 *pointer, Vec2 *alignment_force, int *counter, BoidParams *params, const Boid *other) {
-        float distance = pointer->length();
-
-        if (distance > params->neighbor_distance) {
+    void alignment(VectorData *pointer, Vec2 *force, int *counter, BoidParams *params, const Boid *other) {
+        if (pointer->length > params->neighbor_distance) {
             return;
         }
 
         *counter += 1;
-        alignment_force->add_assign(other->velocity);
+        force->add_assign(other->velocity);
     }
 
-    void separation(Vec2 *pointer, Vec2 *separation_force, BoidParams *params) {
-        float distance = pointer->length();
-
-        if (distance > params->separation_distance || distance < 1e-4) {
+    void separation(VectorData *pointer, Vec2 *force, BoidParams *params) {
+        if (pointer->length > params->separation_distance || pointer->length < 1e-4) {
             return;
         }
 
-        Vec2 repulsion = *pointer;
-        float inv = -1 / (distance * distance);
+        Vec2 repulsion = pointer->vector;
+        float inv = -1 / (pointer->length * pointer->length);
         repulsion.mul_assign(inv);
 
-        separation_force->add_assign(repulsion);
+        force->add_assign(repulsion);
     }
 } Boid;
 
@@ -161,15 +186,15 @@ typedef struct BoidManager {
                     continue;
                 }
 
-                Vec2 relative = bounds->box_wrapped_postion(&target.position, &other.position);
-
+                Vec2 relative = other.position.sub(target.position);
                 if (target.velocity.angle(relative) > params.peripheral_angle) {
                     continue;
                 }
+                VectorData pointer = VectorData::build(relative);
 
-                target.cohesion(&relative, &cohesion_force, &cohesion_count, &this->params);
-                target.alignment(&relative, &alignment_force, &alignment_count, &this->params, &other);
-                target.separation(&relative, &separation_force, &this->params);
+                target.cohesion(&pointer, &cohesion_force, &cohesion_count, &this->params);
+                target.alignment(&pointer, &alignment_force, &alignment_count, &this->params, &other);
+                target.separation(&pointer, &separation_force, &this->params);
             }
 
             if (cohesion_count > 0) {
@@ -189,11 +214,12 @@ typedef struct BoidManager {
         }
 
         for (Boid &boid : this->boids) {
+            boid.avoid_walls(bounds, &this->params);
             boid.integrate(delta_time);
-            boid.reset_forces();
             boid.clamp_speed(this->params.max_speed, this->params.min_speed);
             boid.move(delta_time);
             boid.contain(bounds);
+            boid.reset_forces();
         }
     }
 } BoidManager;
