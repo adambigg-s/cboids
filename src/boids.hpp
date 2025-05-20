@@ -4,6 +4,7 @@
 #define PI 3.141592
 #define TAU PI * 2
 
+#include <unordered_map>
 #include <vector>
 
 #include "vector.hpp"
@@ -42,6 +43,14 @@ typedef struct BoundingBox {
         }
 
         return direct;
+    }
+
+    float width() {
+        return this->xmax - this->xmin;
+    }
+
+    float height() {
+        return this->ymax - this->ymin;
     }
 } BoundingBox;
 
@@ -167,11 +176,72 @@ typedef struct Boid {
     }
 } Boid;
 
+typedef struct SpatialPartition {
+    std::unordered_map<int, std::vector<Boid *>> map;
+    float cell_size;
+    int width;
+    int height;
+
+    static SpatialPartition build(float cell_size, BoundingBox *bounds) {
+        return SpatialPartition{
+            .cell_size = cell_size,
+            .width = (int)(bounds->height() / cell_size + 1),
+            .height = (int)(bounds->width() / cell_size + 1),
+        };
+    }
+
+    void insert(Boid *boid) {
+        this->map[this->boid_key(boid)].push_back(boid);
+    }
+
+    void clear() {
+        this->map.clear();
+    }
+
+    std::vector<Boid *> get_neighbors(Boid *target) {
+        std::vector<Boid *> neighbors;
+        int basex = target->position.x / this->cell_size;
+        int basey = target->position.y / this->cell_size;
+        for (int dx = -1; dx <= 1; dx += 1) {
+            for (int dy = -1; dy <= 1; dy += 1) {
+                int key = this->key(basex + dx, basey + dy);
+                if (this->map.count(key) == 0) {
+                    continue;
+                }
+                for (Boid *boid_ptr : this->map.at(key)) {
+                    neighbors.push_back(boid_ptr);
+                }
+            }
+        }
+
+        return neighbors;
+    }
+
+    int boid_key(Boid *boid) {
+        return this->key(boid->position.x / this->cell_size, boid->position.y / this->cell_size);
+    }
+
+    int key(int x, int y) {
+        return y * this->height + x;
+    }
+
+} SpatialPartition;
+
 typedef struct BoidManager {
     BoidParams params;
     std::vector<Boid> boids;
+    SpatialPartition grid;
+
+    void populate_map(BoundingBox *bounds) {
+        float size = fmax(this->params.neighbor_distance, this->params.separation_distance);
+        this->grid = SpatialPartition::build(size, bounds);
+        for (Boid &boid : this->boids) {
+            this->grid.insert(&boid);
+        }
+    }
 
     void update_boids(BoundingBox *bounds, float delta_time) {
+        this->populate_map(bounds);
         for (Boid &target : this->boids) {
 
             Vec2 cohesion_force = Vec2::zeros();
@@ -181,7 +251,8 @@ typedef struct BoidManager {
             int cohesion_count = 0;
             int alignment_count = 0;
 
-            for (const Boid &other : this->boids) {
+            for (Boid *other_ptr : this->grid.get_neighbors(&target)) {
+                Boid &other = *other_ptr;
                 if (&target == &other) {
                     continue;
                 }
