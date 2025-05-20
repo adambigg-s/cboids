@@ -1,9 +1,6 @@
 #define SOKOL_IMPL
 #define SOKOL_D3D11
 
-const int WIDTH = 1920;
-const int HEIGHT = 1080;
-
 #include "../sokol/sokol_app.h"
 #include "../sokol/sokol_gfx.h"
 #include "../sokol/sokol_glue.h"
@@ -18,13 +15,14 @@ typedef struct State {
     sg_pass_action pass_action;
     sg_bindings boid_binding;
     sg_pipeline boid_pipeline;
+    float frame_time;
 
     World world;
 
     void update() {
         this->world.bounds.ymax = sapp_heightf();
         this->world.bounds.xmax = sapp_widthf();
-        this->world.update();
+        this->world.update(this->frame_time);
     }
 } State;
 
@@ -142,18 +140,19 @@ void sok_cleanup(void *user_data) {
 
 sapp_desc sokol_main(int _argc, char *_argv[]) {
     State *state_ptr = new State{};
-    state_ptr->world = World{.bounds = BoundingBox{.xmin = 0, .xmax = WIDTH, .ymin = 0, .ymax = HEIGHT}};
+    state_ptr->frame_time = 0.05;
+    state_ptr->world = World{.bounds = BoundingBox{.xmin = 0, .xmax = 1920, .ymin = 0, .ymax = 1080}};
     state_ptr->world.data.params = BoidParams{
         .vertices = 3,
         .boid_count = 500,
-        .max_speed = 10,
-        .min_speed = 3,
+        .max_speed = 100,
+        .min_speed = 30,
         .boid_scale = 10,
         .neighbor_distance = 200,
         .separation_distance = 50,
-        .cohesion = 0.005,
-        .alignment = 0.01,
-        .separation = 0.005,
+        .cohesion = 0.05,
+        .alignment = 0.1,
+        .separation = 0.05,
     };
 
     sapp_desc description = sapp_desc{
@@ -162,12 +161,12 @@ sapp_desc sokol_main(int _argc, char *_argv[]) {
         .frame_userdata_cb = sok_frame,
         .cleanup_userdata_cb = sok_cleanup,
         .event_userdata_cb = sok_event,
-        .width = WIDTH,
-        .height = HEIGHT,
+        .width = (int)state_ptr->world.bounds.xmax,
+        .height = (int)state_ptr->world.bounds.ymax,
         .sample_count = 4,
         .high_dpi = true,
         .fullscreen = false,
-        .window_title = "boids simulation with Sokol",
+        .window_title = "boids flocking simulation",
         .icon = sapp_icon_desc{.sokol_default = true},
         .logger = sapp_logger{.func = slog_func, .user_data = state_ptr},
         .win32_console_create = true,
