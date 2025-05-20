@@ -194,10 +194,6 @@ typedef struct SpatialPartition {
         this->map[this->boid_key(boid)].push_back(boid);
     }
 
-    void clear() {
-        this->map.clear();
-    }
-
     std::vector<Boid *> get_neighbors(Boid *target) {
         std::vector<Boid *> neighbors;
         int basex = target->position.x / this->cell_size;
@@ -235,6 +231,7 @@ typedef struct BoidManager {
     void populate_map(BoundingBox *bounds) {
         float size = fmax(this->params.neighbor_distance, this->params.separation_distance);
         this->grid = SpatialPartition::build(size, bounds);
+
         for (Boid &boid : this->boids) {
             this->grid.insert(&boid);
         }
@@ -303,8 +300,8 @@ typedef struct World {
         int x = rand() % (int)this->bounds.xmax;
         int y = rand() % (int)this->bounds.ymax;
         float angle = (float)rand() / RAND_MAX * TAU;
-        data.boids.push_back(Boid::build(
-            Vec2::build(x, y), Vec2::build(cos(angle), sin(angle)).mul(this->data.params.max_speed)));
+        Vec2 velocity = Vec2::build(cos(angle), sin(angle)).mul(this->data.params.max_speed);
+        data.boids.push_back(Boid::build(Vec2::build(x, y), velocity));
     }
 
     void update(float delta_time) {
