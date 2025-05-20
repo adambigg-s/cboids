@@ -62,6 +62,10 @@ typedef struct Vec2 {
     Vec2 normalized() {
         return this->div(this->length());
     }
+
+    float angle(Vec2 other) {
+        return acos(this->inner_product(other) / (this->length() * other.length()));
+    }
 } Vec2;
 
 #endif

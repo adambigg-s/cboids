@@ -1,6 +1,7 @@
 #ifndef BOIDS_H
 #define BOIDS_H
 
+#include <cmath>
 #define PI 3.141592
 #define TAU PI * 2
 
@@ -15,7 +16,7 @@ typedef struct BoundingBox {
     float ymin;
     float ymax;
 
-    Vec2 box_wrapped_postion(const Vec2 *to, const Vec2 *from) {
+    Vec2 box_wrapped_postion(const Vec2 *from, const Vec2 *to) {
         float x_range = this->xmax - this->xmin;
         float y_range = this->ymax - this->ymin;
 
@@ -48,6 +49,7 @@ typedef struct BoidParams {
     float cohesion;
     float alignment;
     float separation;
+    float peripheral_angle;
 } BoidParams;
 
 typedef struct Boid {
@@ -72,19 +74,23 @@ typedef struct Boid {
     }
 
     void reset_forces() {
-        this->acceleration.mul_assign(0);
+        this->acceleration = Vec2::zeros();
     }
 
     void contain(BoundingBox *bounds) {
         if (this->position.x > bounds->xmax) {
-            this->position.x = bounds->xmin;
-        } else if (this->position.x < bounds->xmin) {
             this->position.x = bounds->xmax;
+            this->velocity.x *= -1;
+        } else if (this->position.x < bounds->xmin) {
+            this->position.x = bounds->xmin;
+            this->velocity.x *= -1;
         }
         if (this->position.y > bounds->ymax) {
-            this->position.y = bounds->ymin;
-        } else if (this->position.y < bounds->ymin) {
             this->position.y = bounds->ymax;
+            this->velocity.y *= -1;
+        } else if (this->position.y < bounds->ymin) {
+            this->position.y = bounds->ymin;
+            this->velocity.y *= -1;
         }
     }
 
@@ -98,7 +104,7 @@ typedef struct Boid {
         }
     }
 
-    void cohesion(Vec2 *pointer, Vec2 *cohesion, int *counter, BoidParams *params) {
+    void cohesion(Vec2 *pointer, Vec2 *cohesion_force, int *counter, BoidParams *params) {
         float distance = pointer->length();
 
         if (distance > params->neighbor_distance) {
@@ -106,10 +112,11 @@ typedef struct Boid {
         }
 
         *counter += 1;
-        cohesion->add_assign(*pointer);
+        cohesion_force->add_assign(*pointer);
     }
 
-    void alignment(Vec2 *pointer, Vec2 *alignment, int *counter, BoidParams *params, const Boid *other) {
+    void alignment(
+        Vec2 *pointer, Vec2 *alignment_force, int *counter, BoidParams *params, const Boid *other) {
         float distance = pointer->length();
 
         if (distance > params->neighbor_distance) {
@@ -117,21 +124,21 @@ typedef struct Boid {
         }
 
         *counter += 1;
-        alignment->add_assign(other->velocity);
+        alignment_force->add_assign(other->velocity);
     }
 
-    void separation(Vec2 *pointer, Vec2 *separation, BoidParams *params) {
+    void separation(Vec2 *pointer, Vec2 *separation_force, BoidParams *params) {
         float distance = pointer->length();
 
-        if (distance > params->separation_distance) {
+        if (distance > params->separation_distance || distance < 1e-4) {
             return;
         }
 
-        Vec2 repulsion = pointer->normalized();
-        float inv = -1 / distance;
+        Vec2 repulsion = *pointer;
+        float inv = -1 / (distance * distance);
         repulsion.mul_assign(inv);
 
-        separation->add_assign(repulsion);
+        separation_force->add_assign(repulsion);
     }
 } Boid;
 
@@ -142,9 +149,9 @@ typedef struct BoidManager {
     void update_boids(BoundingBox *bounds, float delta_time) {
         for (Boid &target : this->boids) {
 
-            Vec2 cohesion = Vec2::zeros();
-            Vec2 alignment = Vec2::zeros();
-            Vec2 separation = Vec2::zeros();
+            Vec2 cohesion_force = Vec2::zeros();
+            Vec2 alignment_force = Vec2::zeros();
+            Vec2 separation_force = Vec2::zeros();
 
             int cohesion_count = 0;
             int alignment_count = 0;
@@ -154,35 +161,39 @@ typedef struct BoidManager {
                     continue;
                 }
 
-                Vec2 relative_position = bounds->box_wrapped_postion(&target.position, &other.position);
+                Vec2 relative = bounds->box_wrapped_postion(&target.position, &other.position);
 
-                target.cohesion(&relative_position, &cohesion, &cohesion_count, &this->params);
-                target.alignment(&relative_position, &alignment, &alignment_count, &this->params, &other);
-                target.separation(&relative_position, &separation, &this->params);
+                if (target.velocity.angle(relative) > params.peripheral_angle) {
+                    continue;
+                }
+
+                target.cohesion(&relative, &cohesion_force, &cohesion_count, &this->params);
+                target.alignment(&relative, &alignment_force, &alignment_count, &this->params, &other);
+                target.separation(&relative, &separation_force, &this->params);
             }
 
             if (cohesion_count > 0) {
-                cohesion.div_assign(cohesion_count);
-                cohesion.mul_assign(this->params.cohesion);
-                target.acceleration.add_assign(cohesion);
+                cohesion_force.div_assign(cohesion_count);
+                cohesion_force.mul_assign(this->params.cohesion);
+                target.acceleration.add_assign(cohesion_force);
             }
 
             if (alignment_count > 0) {
-                alignment.div_assign(alignment_count);
-                alignment.mul_assign(this->params.alignment);
-                target.acceleration.add_assign(alignment);
+                alignment_force.div_assign(alignment_count);
+                alignment_force.mul_assign(this->params.alignment);
+                target.acceleration.add_assign(alignment_force);
             }
 
-            separation.mul_assign(this->params.separation);
-            target.acceleration.add_assign(separation);
+            separation_force.mul_assign(this->params.separation);
+            target.acceleration.add_assign(separation_force);
         }
 
         for (Boid &boid : this->boids) {
             boid.integrate(delta_time);
             boid.reset_forces();
             boid.clamp_speed(this->params.max_speed, this->params.min_speed);
-            boid.contain(bounds);
             boid.move(delta_time);
+            boid.contain(bounds);
         }
     }
 } BoidManager;

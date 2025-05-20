@@ -104,30 +104,42 @@ void sok_event(const sapp_event *event, void *state_ptr) {
         } else if (event->key_code == SAPP_KEYCODE_A) {
             state->world.data.params.boid_count /= 2;
         }
+        printf("boid count: %d\n", state->world.data.params.boid_count);
 
         if (event->key_code == SAPP_KEYCODE_W) {
             state->world.data.params.neighbor_distance *= 2;
         } else if (event->key_code == SAPP_KEYCODE_S) {
             state->world.data.params.neighbor_distance /= 2;
         }
+        printf("neighbor distance: %.2f\n", state->world.data.params.neighbor_distance);
 
         if (event->key_code == SAPP_KEYCODE_E) {
-            state->world.data.params.cohesion *= 2;
+            state->world.data.params.separation_distance *= 2;
         } else if (event->key_code == SAPP_KEYCODE_D) {
-            state->world.data.params.cohesion /= 2;
+            state->world.data.params.separation_distance /= 2;
         }
+        printf("separation distance: %.2f\n", state->world.data.params.separation_distance);
 
         if (event->key_code == SAPP_KEYCODE_R) {
             state->world.data.params.alignment *= 2;
         } else if (event->key_code == SAPP_KEYCODE_F) {
             state->world.data.params.alignment /= 2;
         }
+        printf("alignment constant: %.2f\n", state->world.data.params.alignment);
 
         if (event->key_code == SAPP_KEYCODE_T) {
-            state->world.data.params.separation *= 2;
+            state->world.data.params.cohesion *= 2;
         } else if (event->key_code == SAPP_KEYCODE_G) {
+            state->world.data.params.cohesion /= 2;
+        }
+        printf("cohesion constant: %.2f\n", state->world.data.params.cohesion);
+
+        if (event->key_code == SAPP_KEYCODE_Y) {
+            state->world.data.params.separation *= 2;
+        } else if (event->key_code == SAPP_KEYCODE_H) {
             state->world.data.params.separation /= 2;
         }
+        printf("separation constant: %.2f\n", state->world.data.params.separation);
     }
 }
 
@@ -145,14 +157,15 @@ sapp_desc sokol_main(int _argc, char *_argv[]) {
     state_ptr->world.data.params = BoidParams{
         .vertices = 3,
         .boid_count = 500,
-        .max_speed = 100,
-        .min_speed = 30,
+        .max_speed = 200,
+        .min_speed = 75,
         .boid_scale = 10,
         .neighbor_distance = 200,
         .separation_distance = 50,
-        .cohesion = 0.05,
-        .alignment = 0.1,
-        .separation = 0.05,
+        .cohesion = 0.625,
+        .alignment = 2.5,
+        .separation = 1000,
+        .peripheral_angle = PI / 6,
     };
 
     sapp_desc description = sapp_desc{
